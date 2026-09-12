@@ -246,15 +246,23 @@ class CipherDrop(_BaseJanela):
         linha_botoes.pack(fill="x", padx=24, pady=(0, 10))
         linha_botoes.grid_columnconfigure((0, 1), weight=1)
 
-        ctk.CTkButton(linha_botoes, text="🔒  Criptografar", height=42, corner_radius=10,
-                      fg_color=BTN_ENCRYPT, hover_color=BTN_ENCRYPT_HOVER, text_color="white",
-                      font=("Inter", 13, "bold"),
-                      command=lambda: self.iniciar_thread('c')).grid(row=0, column=0, sticky="ew", padx=(0, 6))
+        self.btn_criptografar = ctk.CTkButton(
+            linha_botoes, text="🔒  Criptografar", height=42, corner_radius=10,
+            fg_color=BTN_ENCRYPT, hover_color=BTN_ENCRYPT_HOVER, text_color="white",
+            font=("Inter", 13, "bold"),
+            command=lambda: self.iniciar_thread('c')
+        )
+        self.btn_criptografar.grid(row=0, column=0, sticky="ew", padx=(0, 6))
 
-        ctk.CTkButton(linha_botoes, text="🔓  Descriptografar", height=42, corner_radius=10,
-                      fg_color=BTN_DECRYPT, hover_color=BTN_DECRYPT_HOVER, text_color=TEXT_WHITE,
-                      font=("Inter", 13, "bold"), border_width=1, border_color=FIELD_BORDER,
-                      command=lambda: self.iniciar_thread('d')).grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self.btn_descriptografar = ctk.CTkButton(
+            linha_botoes, text="🔓  Descriptografar", height=42, corner_radius=10,
+            fg_color=BTN_DECRYPT, hover_color=BTN_DECRYPT_HOVER, text_color=TEXT_WHITE,
+            font=("Inter", 13, "bold"), border_width=1, border_color=FIELD_BORDER,
+            command=lambda: self.iniciar_thread('d')
+        )
+        self.btn_descriptografar.grid(row=0, column=1, sticky="ew", padx=(6, 0))
+        self._atualizar_estado_botoes()
+        self.entry_pass.bind("<Return>", self._processar_com_enter)
 
         rodape = ctk.CTkFrame(painel, fg_color="transparent")
         rodape.pack(fill="x", padx=24, pady=(4, 22))
@@ -265,6 +273,11 @@ class CipherDrop(_BaseJanela):
 
         self.status_label = ctk.CTkLabel(rodape, text="", font=("Inter", 10), text_color=TEXT_GRAY)
         self.status_label.pack(anchor="w")
+
+        ctk.CTkLabel(rodape, text="© 2026 Esdras Uday. All rights reserved.",
+                 font=("Inter", 9), text_color=TEXT_GRAY_DIM).pack(pady=(14, 0))
+        ctk.CTkLabel(rodape, text="v4.2", font=("JetBrains Mono", 9),
+                 text_color=TEXT_GRAY_DIM).pack(pady=(3, 0))
 
         self._redesenhar_dropzone()
 
@@ -535,11 +548,32 @@ class CipherDrop(_BaseJanela):
         if caminho:
             self.definir_arquivo(caminho)
 
+    def _atualizar_estado_botoes(self):
+        arquivo_selecionado = bool(self.arquivo_selecionado)
+        eh_criptografado = arquivo_selecionado and os.path.splitext(
+            self.arquivo_selecionado
+        )[1].lower() == ".floki"
+        self.btn_criptografar.configure(
+            state="disabled" if eh_criptografado or not arquivo_selecionado else "normal"
+        )
+        self.btn_descriptografar.configure(
+            state="normal" if eh_criptografado else "disabled"
+        )
+
+    def _processar_com_enter(self, _event=None):
+        if not self.arquivo_selecionado:
+            self._mostrar_dialogo("Atenção", "Selecione um arquivo primeiro.", "warning")
+            return "break"
+        modo = "d" if os.path.splitext(self.arquivo_selecionado)[1].lower() == ".floki" else "c"
+        self.iniciar_thread(modo)
+        return "break"
+
     def definir_arquivo(self, caminho: str):
         if not os.path.isfile(caminho):
             self._mostrar_dialogo("Atenção", "Isso não parece ser um arquivo válido.", "warning")
             return
         self.arquivo_selecionado = caminho
+        self._atualizar_estado_botoes()
         self._redesenhar_dropzone()
 
     def on_drag_enter(self, event):
@@ -589,8 +623,11 @@ class CipherDrop(_BaseJanela):
 
     def processar(self, modo):
         senha = self.entry_pass.get()
-        if not senha or not self.arquivo_selecionado:
-            self._mostrar_dialogo("Atenção", "Preencha a senha e selecione um arquivo!", "warning")
+        if not self.arquivo_selecionado:
+            self._mostrar_dialogo("Atenção", "Selecione um arquivo primeiro.", "warning")
+            return
+        if modo == 'c' and not senha:
+            self._mostrar_dialogo("Atenção", "Digite uma senha para criptografar o arquivo.", "warning")
             return
 
         caminho_original = self.arquivo_selecionado
@@ -658,7 +695,9 @@ class CipherDrop(_BaseJanela):
                     raise ValueError("Senha incorreta ou arquivo corrompido.")
 
                 tam_nome = int.from_bytes(pacote_decifrado[:2], 'big')
-                nome_original = pacote_decifrado[2:2 + tam_nome].decode()
+                nome_original = os.path.basename(
+                    pacote_decifrado[2:2 + tam_nome].decode()
+                )
                 resultado = pacote_decifrado[2 + tam_nome:]
 
                 novo_caminho = os.path.join(diretorio, nome_original)
@@ -682,6 +721,7 @@ class CipherDrop(_BaseJanela):
             self._mostrar_dialogo("Sucesso", "Arquivo transformado com sucesso!", "success")
             self.arquivo_selecionado = ""
             self.entry_pass.delete(0, "end")
+            self._atualizar_estado_botoes()
             self.after(0, self._redesenhar_dropzone)
             self.progress_bar.set(0)
 
