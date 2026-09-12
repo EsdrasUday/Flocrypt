@@ -6,7 +6,7 @@ O processamento acontece no próprio computador. Os arquivos e senhas não são 
 
 ## Interface
 
-![Interface do Flocrypt](tela.png)
+![Interface do Flocrypt](assets/tela.png)
 
 ## Principais recursos
 
